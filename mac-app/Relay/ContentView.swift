@@ -6,30 +6,31 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
-
-            if store.apiKey.isEmpty {
-                noKeyView
+            if showSettings {
+                SettingsView(isPresented: $showSettings)
+                    .environmentObject(store)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        statsBar
-                        Divider().padding(.horizontal, 12)
-                        taskSections
+                header
+                Divider()
+
+                if store.apiKey.isEmpty {
+                    noKeyView
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            statsBar
+                            Divider().padding(.horizontal, 12)
+                            taskSections
+                        }
                     }
                 }
-            }
 
-            Divider()
-            footer
+                Divider()
+                footer
+            }
         }
         .frame(width: 340)
         .background(Color(NSColor.windowBackgroundColor))
-        .sheet(isPresented: $showSettings) {
-            SettingsView(isPresented: $showSettings)
-                .environmentObject(store)
-        }
     }
 
     // ── Header ────────────────────────────────────────────────────────────────

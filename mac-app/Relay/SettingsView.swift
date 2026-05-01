@@ -59,6 +59,10 @@ struct SettingsView: View {
         .onAppear {
             url = store.apiURL
             key = store.apiKey
+            // Keep the popover from dismissing when text fields take focus
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeKey()
+            }
         }
     }
 }
