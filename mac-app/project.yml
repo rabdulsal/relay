@@ -1,0 +1,29 @@
+name: Relay
+options:
+  bundleIdPrefix: com.webslingerai
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15"
+
+targets:
+  Relay:
+    type: application
+    platform: macOS
+    sources:
+      - Relay
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.webslingerai.relay
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSHumanReadableDescription: "External working memory for multi-agent systems"
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSHighResolutionCapable: YES
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+    entitlements:
+      path: Relay/Relay.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
