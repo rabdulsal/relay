@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Relay MCP Server
  * External working memory for multi-agent systems.
@@ -13,9 +13,29 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const BASE      = (process.env.RELAY_API_URL ?? "https://agent-task-tracker.onrender.com").replace(/\/$/, "");
-const API_KEY   = process.env.RELAY_API_KEY ?? "";
-const AGENT     = process.env.RELAY_AGENT   ?? "claude-code";
+const RELAY_TOKEN  = process.env.RELAY_TOKEN ?? "";
+const HOSTED_URL   = "https://agent-task-tracker.onrender.com";
+
+let BASE    = (process.env.RELAY_API_URL ?? HOSTED_URL).replace(/\/$/, "");
+let API_KEY = process.env.RELAY_API_KEY ?? "";
+let AGENT   = process.env.RELAY_AGENT   ?? "claude-code";
+
+// If RELAY_TOKEN is set, resolve credentials from the hosted backend on startup.
+// This is the hosted-tier path — users only need one env var.
+if (RELAY_TOKEN) {
+  const res = await fetch(`${HOSTED_URL}/auth/resolve`, {
+    headers: { "x-relay-token": RELAY_TOKEN },
+  });
+  if (!res.ok) {
+    process.stderr.write(`[relay-mcp] Failed to resolve RELAY_TOKEN: ${res.status} ${await res.text()}\n`);
+    process.exit(1);
+  }
+  const creds = await res.json() as { api_key: string; api_url: string; agent_name: string };
+  BASE    = creds.api_url.replace(/\/$/, "");
+  API_KEY = creds.api_key;
+  // RELAY_AGENT env var overrides resolved agent_name so users can still set it
+  AGENT   = process.env.RELAY_AGENT ?? creds.agent_name;
+}
 
 const headers = () => ({
   "Content-Type": "application/json",
@@ -39,7 +59,7 @@ async function relayFetch(path: string, method = "GET", body?: object) {
 
 const server = new McpServer({
   name:    "relay",
-  version: "0.1.0",
+  version: "1.3.0",
 });
 
 // ── Tools ─────────────────────────────────────────────────────────────────────

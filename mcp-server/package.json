@@ -1,23 +1,34 @@
 {
-  "name": "relay-mcp",
-  "version": "0.1.0",
-  "description": "MCP server for Relay — external working memory for multi-agent systems",
+  "name": "@relayctl/mcp",
+  "version": "1.3.0",
+  "description": "External working memory for multi-agent systems — MCP server for Relay",
   "type": "module",
-  "bin": { "relay-mcp": "src/index.ts" },
+  "bin": { "relay-mcp": "dist/index.js" },
+  "files": ["dist", "README.md", "SETUP.md"],
   "scripts": {
-    "dev":   "tsx src/index.ts",
-    "start": "tsx src/index.ts"
+    "build":   "tsc",
+    "prepare": "npm run build",
+    "dev":     "tsx src/index.ts",
+    "start":   "node dist/index.js"
   },
-  "keywords": ["mcp", "relay", "agents", "claude"],
-  "author": "Rashad Abdul-Salaam",
+  "keywords": ["mcp", "relay", "agents", "claude", "multi-agent", "task-tracker"],
+  "author": "Rashad Abdul-Salaam <rabdulsalaam@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rabdulsal/relay.git"
+  },
+  "homepage": "https://github.com/rabdulsal/relay#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^4.4.1"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^20.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
