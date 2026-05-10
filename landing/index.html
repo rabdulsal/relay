@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Relay — Shared memory for your AI agent stack</title>
   <meta name="description" content="A shared task board for multi-agent AI systems. REST API, Mac menu bar app, twice-daily email reports.">
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="/favicon-256.png">
+  <link rel="apple-touch-icon" href="/favicon-256.png">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -281,10 +284,25 @@
       border-bottom: 1px solid rgba(31,45,66,.5);
       opacity: 0;
       transform: translateY(4px);
-      transition: opacity .4s, transform .4s;
+      max-height: 80px;
+      overflow: hidden;
+      transition: opacity .4s, transform .4s, max-height .45s ease, padding .45s ease, background .3s;
     }
     .mb-row.visible { opacity: 1; transform: none; }
     .mb-row:last-child { border-bottom: none; }
+    .mb-row.completing { background: rgba(52,211,153,.08); }
+    .mb-row.collapsing { opacity: 0 !important; max-height: 0 !important; padding: 0 !important; border-bottom: none !important; }
+    @keyframes mbSlideIn {
+      from { opacity: 0; transform: translateY(6px); max-height: 0; }
+      to   { opacity: 1; transform: none; max-height: 80px; }
+    }
+    .mb-row.slide-in { animation: mbSlideIn .4s ease forwards; }
+    @keyframes statPop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.35); }
+      100% { transform: scale(1); }
+    }
+    .stat-pop { animation: statPop .25s ease; }
     .mb-row-text { flex: 1; font-size: 11px; line-height: 1.45; font-weight: 500; }
     .mb-row-sub { font-size: 10px; color: #F02D5A; margin-top: 3px; line-height: 1.4; }
     .mb-badge {
@@ -677,7 +695,9 @@
 <!-- ── Nav ── -->
 <nav>
   <div class="logo">
-    <div class="logo-mark">↺</div>
+    <div class="logo-mark" style="background:none;border:1px solid var(--border2);font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:-1px;width:28px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:0;padding:0 3px">
+      <span style="color:#3D7EF5">R</span><span style="color:#F02D5A">Y</span>
+    </div>
     <span style="color:#3D7EF5">r</span>ela<span style="color:#F02D5A">y</span>
   </div>
   <div class="nav-right">
@@ -685,7 +705,7 @@
     <a class="nav-link" href="#api">API</a>
     <a class="nav-link" href="#pricing">Pricing</a>
     <a class="nav-link" href="https://github.com/rabdulsal/relay" target="_blank">GitHub</a>
-    <a class="nav-cta" href="#waitlist">Early access</a>
+    <a class="nav-cta" href="/get-started">Get started free</a>
   </div>
 </nav>
 
@@ -694,16 +714,16 @@
   <div class="hero-left">
     <div class="pill">
       <span class="pill-dot"></span>
-      external agent memory · v0.1
+      external agent memory · now in beta
     </div>
-    <h1>Your agents are working.<br><span class="hl">Know exactly what they're doing.</span></h1>
+    <h1>There's Work to Do.<br><span class="hl">Get Your Agents On It.</span></h1>
     <p class="hero-sub">
-      Relay is a shared task board for multi-agent AI systems.
-      Any agent can read or write it via REST API.
-      You see everything in your Mac menu bar.
+      Relay is a shared task board for your AI agents.
+      They post what they're doing — you see everything live
+      in your Mac menu bar, without reading a single log.
     </p>
     <div class="hero-actions">
-      <a href="#waitlist" class="btn-primary">Get early access</a>
+      <a href="/get-started" class="btn-primary">Get Started Free</a>
       <a href="#api" class="btn-secondary">
         See the API
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -730,29 +750,29 @@
       <div class="mb-body">
         <div class="mb-stats">
           <div class="mb-stat-card">
-            <div class="mb-stat-n" style="color:var(--blue)">3</div>
+            <div class="mb-stat-n" id="stat-active" style="color:var(--blue)">3</div>
             <div class="mb-stat-l">active</div>
           </div>
           <div class="mb-stat-card">
-            <div class="mb-stat-n" style="color:var(--muted2)">7</div>
+            <div class="mb-stat-n" id="stat-pending" style="color:var(--muted2)">7</div>
             <div class="mb-stat-l">pending</div>
           </div>
           <div class="mb-stat-card">
-            <div class="mb-stat-n" style="color:var(--red)">1</div>
+            <div class="mb-stat-n" id="stat-blocked" style="color:var(--red)">1</div>
             <div class="mb-stat-l">blocked</div>
           </div>
           <div class="mb-stat-card">
-            <div class="mb-stat-n" style="color:var(--emerald)">18</div>
+            <div class="mb-stat-n" id="stat-done" style="color:var(--emerald)">18</div>
             <div class="mb-stat-l">done</div>
           </div>
         </div>
 
         <div class="mb-group">
           <div class="mb-group-label amber">⚡ action needed</div>
-          <div class="mb-row" id="r0">
+          <div class="mb-row visible">
             <div class="mb-row-text">
-              Subscribe live Stripe webhook to payment_intent events
-              <div class="mb-row-sub">Add events in Stripe Dashboard › Developers › Webhooks</div>
+              Stripe webhook missing payment_intent.* events
+              <div class="mb-row-sub">Add in Stripe Dashboard › Developers › Webhooks</div>
             </div>
             <span class="mb-badge badge-urgent">urgent</span>
           </div>
@@ -760,26 +780,12 @@
 
         <div class="mb-group">
           <div class="mb-group-label">in progress</div>
-          <div class="mb-row" id="r1">
-            <div class="mb-row-text">Build contractor license scrapers — DE/NJ/PA</div>
-            <span class="mb-badge badge-active">active</span>
-          </div>
-          <div class="mb-row" id="r2">
-            <div class="mb-row-text">Generate weekly digest + send to 14k list</div>
-            <span class="mb-badge badge-active">active</span>
-          </div>
+          <div id="anim-active"></div>
         </div>
 
         <div class="mb-group">
           <div class="mb-group-label">pending</div>
-          <div class="mb-row" id="r3">
-            <div class="mb-row-text">Expo push notifications — job alerts to mobile</div>
-            <span class="mb-badge badge-pending">medium</span>
-          </div>
-          <div class="mb-row" id="r4">
-            <div class="mb-row-text">SMS dispatch-to-tech on assignment</div>
-            <span class="mb-badge badge-pending">medium</span>
-          </div>
+          <div id="anim-pending"></div>
         </div>
       </div>
     </div>
@@ -1076,6 +1082,125 @@ function joinWaitlist() {
 document.getElementById('wl-email').addEventListener('keydown', e => {
   if (e.key === 'Enter') joinWaitlist();
 });
+</script>
+
+<script>
+// ── Animated task board ──────────────────────────────────────────────────────
+(function () {
+  const POOL = [
+    ["Build auth module",                    "badge-active",  "active",  true],
+    ["Contractor license scraper — DE/NJ",   "badge-active",  "active",  true],
+    ["Scrape contractor licenses — PA/MD",   "badge-pending", "high",    false],
+    ["Expo push notifications",              "badge-pending", "medium",  false],
+    ["SMS dispatch on assignment",           "badge-pending", "medium",  false],
+    ["Generate weekly digest",               "badge-pending", "medium",  false],
+    ["Sync calendar integrations",           "badge-pending", "low",     false],
+    ["Run smoke tests on staging",           "badge-pending", "medium",  false],
+    ["Deploy to production",                 "badge-pending", "high",    false],
+    ["Write API documentation",              "badge-pending", "low",     false],
+    ["Backfill analytics events",            "badge-pending", "low",     false],
+    ["Send weekly digest to 14k list",       "badge-pending", "medium",  false],
+    ["Update onboarding flow copy",          "badge-pending", "low",     false],
+    ["Refactor billing route to lookup_key", "badge-pending", "medium",  false],
+  ];
+
+  let active  = POOL.filter(t => t[3]).map(t => ({ title: t[0], badge: t[1], label: t[2] }));
+  let pending = POOL.filter(t => !t[3]).slice(0, 4).map(t => ({ title: t[0], badge: t[1], label: t[2] }));
+  let poolIdx = POOL.filter(t => !t[3]).length;
+  let stats   = { active: 3, pending: 7, blocked: 1, done: 18 };
+  let busy    = false;
+
+  function el(id) { return document.getElementById(id); }
+
+  function popStat(id, val) {
+    const n = el(id);
+    if (!n) return;
+    n.textContent = val;
+    n.classList.remove('stat-pop');
+    void n.offsetWidth;
+    n.classList.add('stat-pop');
+  }
+
+  function rowHTML(task, extraClass) {
+    return `<div class="mb-row ${extraClass || ''}">
+      <div class="mb-row-text">${task.title}</div>
+      <span class="mb-badge ${task.badge}">${task.label}</span>
+    </div>`;
+  }
+
+  function renderList(containerId, list, animate) {
+    const c = el(containerId);
+    if (!c) return;
+    c.innerHTML = list.map((t, i) =>
+      rowHTML(t, animate && i === list.length - 1 ? 'slide-in' : 'visible')
+    ).join('');
+  }
+
+  function init() {
+    renderList('anim-active',  active,  false);
+    renderList('anim-pending', pending, false);
+  }
+
+  function tick() {
+    if (busy || !el('anim-active')) return;
+    busy = true;
+
+    const ca = el('anim-active');
+    const firstRow = ca ? ca.querySelector('.mb-row') : null;
+    if (!firstRow) { busy = false; return; }
+
+    // 1. Flash green on first active task
+    firstRow.classList.add('completing');
+    const badge = firstRow.querySelector('.mb-badge');
+    const text  = firstRow.querySelector('.mb-row-text');
+    if (badge) { badge.className = 'mb-badge badge-done'; badge.textContent = 'done'; }
+    if (text)  { text.textContent = '✓ ' + active[0].title; }
+
+    setTimeout(() => {
+      // 2. Collapse it out
+      firstRow.classList.add('collapsing');
+
+      setTimeout(() => {
+        // 3. Update stats
+        active.shift();
+        stats.done++;
+        stats.active--;
+        popStat('stat-done',   stats.done);
+        popStat('stat-active', stats.active);
+
+        // 4. Promote first pending → active
+        if (pending.length > 0) {
+          const promoted   = pending.shift();
+          promoted.badge   = 'badge-active';
+          promoted.label   = 'active';
+          active.push(promoted);
+          stats.active++;
+          stats.pending--;
+          popStat('stat-active',  stats.active);
+          popStat('stat-pending', stats.pending);
+        }
+        renderList('anim-active', active, false);
+        renderList('anim-pending', pending, false);
+
+        setTimeout(() => {
+          // 5. New task slides into pending
+          const next = POOL.filter(t => !t[3])[poolIdx % POOL.filter(t => !t[3]).length];
+          poolIdx++;
+          pending.push({ title: next[0], badge: 'badge-pending', label: next[2] });
+          stats.pending++;
+          popStat('stat-pending', stats.pending);
+          renderList('anim-pending', pending, true);
+          busy = false;
+        }, 700);
+      }, 500);
+    }, 700);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    init();
+    setInterval(tick, 3800);
+  });
+})();
 </script>
 </body>
 </html>
