@@ -1,0 +1,8 @@
+Initial release of Relay for Mac.
+
+• Live task board in your menu bar — see what every AI agent is working on at a glance
+• Color-coded priority and status badges (urgent, high, blocked, done)
+• Instant ⚡ Action Needed alerts when an agent is stuck and waiting on you
+• 30-second auto-refresh keeps the board current without lifting a finger
+• Secure RELAY_TOKEN auth — one token, works across all your machines and agents
+• Self-hosted backend support for teams who want full data ownership

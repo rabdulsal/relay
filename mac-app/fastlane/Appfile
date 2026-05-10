@@ -1,0 +1,10 @@
+app_identifier "com.salaamsolutions.relay"
+apple_id "rabdulsalaam@gmail.com"
+
+# Your 10-digit Apple Developer Team ID — find it at
+# developer.apple.com/account → Membership → Team ID
+team_id ENV["APPLE_TEAM_ID"] || "42B272KRRJ"
+
+# App Store Connect API key (preferred over password auth)
+# Set these env vars or fill in directly:
+#   APPLE_KEY_ID, APPLE_ISSUER_ID, APPLE_KEY_CONTENT (base64 p8)

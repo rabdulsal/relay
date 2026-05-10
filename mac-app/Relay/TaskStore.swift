@@ -9,14 +9,31 @@ class TaskStore: ObservableObject {
     @Published var lastError: String?      = nil
     @Published var lastRefresh: Date?      = nil
 
-    @AppStorage("relay_api_url") var apiURL = "https://agent-task-tracker.onrender.com"
-    @AppStorage("relay_api_key") var apiKey = ""
+    @AppStorage("relay_token")      var relayToken      = ""
+    @AppStorage("relay_agent_name") var agentName       = ""
+    @AppStorage("relay_api_url")    var apiURL          = "https://tryrelayapp.com"
+    @AppStorage("relay_api_key")    var apiKey          = ""
 
     private var timer: Timer?
 
     init() {
-        Task { await refresh() }
+        Task { await bootAsync() }
+    }
+
+    // On launch: if we have a token but no key yet, resolve it first
+    private func bootAsync() async {
+        if !relayToken.isEmpty && apiKey.isEmpty {
+            do {
+                let (key, url, agent) = try await resolveRelayToken(relayToken)
+                apiKey    = key
+                apiURL    = url
+                agentName = agent
+            } catch {
+                lastError = "Token resolve failed: \(error.localizedDescription)"
+            }
+        }
         startPolling()
+        await refresh()
     }
 
     func startPolling() {
@@ -33,9 +50,9 @@ class TaskStore: ObservableObject {
             async let t = fetchTasks()
             async let s = fetchSummary()
             let (tasks, summary) = try await (t, s)
-            self.tasks      = tasks.sorted { $0.priorityOrder < $1.priorityOrder }
-            self.summary    = summary
-            self.lastError  = nil
+            self.tasks       = tasks.sorted { $0.priorityOrder < $1.priorityOrder }
+            self.summary     = summary
+            self.lastError   = nil
             self.lastRefresh = Date()
         } catch {
             self.lastError = error.localizedDescription
@@ -77,11 +94,13 @@ class TaskStore: ObservableObject {
     var done:         [RelayTask] { tasks.filter { $0.status == "done" } }
 
     var menuBarColor: Color {
-        if !actionNeeded.isEmpty { return .red }
-        if !blocked.isEmpty      { return .orange }
-        if !inProgress.isEmpty   { return .blue }
+        if !actionNeeded.isEmpty { return RelayTheme.pink }
+        if !blocked.isEmpty      { return RelayTheme.pink }
+        if !inProgress.isEmpty   { return RelayTheme.blue }
         return .secondary
     }
 
     var menuBarCount: Int { inProgress.count + blocked.count + actionNeeded.count }
+
+    var isConnected: Bool { !apiKey.isEmpty }
 }

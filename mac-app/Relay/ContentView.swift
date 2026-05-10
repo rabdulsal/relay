@@ -2,12 +2,17 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: TaskStore
-    @State private var showSettings = false
+    @State private var showSettings   = false
+    @State private var showOnboarding = false
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
         VStack(spacing: 0) {
             if showSettings {
                 SettingsView(isPresented: $showSettings)
+                    .environmentObject(store)
+            } else if showOnboarding {
+                OnboardingView(isPresented: $showOnboarding)
                     .environmentObject(store)
             } else {
                 header
@@ -31,51 +36,66 @@ struct ContentView: View {
         }
         .frame(width: 340)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            if !hasSeenOnboarding && store.apiKey.isEmpty {
+                hasSeenOnboarding = true
+                showOnboarding    = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
+            showSettings = true
+        }
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
 
     private var header: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.accentColor)
-                Text("Relay")
-                    .font(.system(size: 14, weight: .bold))
-            }
-            Spacer()
-            HStack(spacing: 6) {
-                if store.loading {
-                    ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+        VStack(spacing: 0) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(RelayTheme.blue)
+                    Text("Relay")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
-                Button(action: { Task { await store.refresh() } }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                Spacer()
+                HStack(spacing: 6) {
+                    if store.loading {
+                        ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+                    }
+                    Button(action: { Task { await store.refresh() } }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
 
-                Button(action: { showSettings = true }) {
-                    Image(systemName: "gear")
-                        .font(.system(size: 12))
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            // Brand gradient rule
+            RelayTheme.brandGradient
+                .frame(height: 2)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
     // ── Stats bar ─────────────────────────────────────────────────────────────
 
     private var statsBar: some View {
         HStack(spacing: 0) {
-            statPill(label: "active",   value: store.inProgress.count,   color: .blue)
+            statPill(label: "active",   value: store.inProgress.count,   color: RelayTheme.active)
             statPill(label: "pending",  value: store.pending.count,      color: .secondary)
-            statPill(label: "blocked",  value: store.blocked.count,      color: .orange)
-            statPill(label: "done",     value: store.done.count,         color: .green)
+            statPill(label: "blocked",  value: store.blocked.count,      color: RelayTheme.blocked)
+            statPill(label: "done",     value: store.done.count,         color: RelayTheme.done)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -85,9 +105,9 @@ struct ContentView: View {
         VStack(spacing: 1) {
             Text("\(value)")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(value > 0 ? color : .secondary)
+                .foregroundColor(value > 0 ? color : Color.secondary.opacity(0.4))
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -98,7 +118,7 @@ struct ContentView: View {
     private var taskSections: some View {
         VStack(spacing: 0) {
             if !store.actionNeeded.isEmpty {
-                TaskSection(title: "⚡ Action Needed", tasks: store.actionNeeded, accent: .orange)
+                TaskSection(title: "⚡ Action Needed", tasks: store.actionNeeded, accent: RelayTheme.pink)
             }
             if !store.inProgress.isEmpty {
                 TaskSection(title: "In Progress", tasks: store.inProgress)
@@ -125,18 +145,24 @@ struct ContentView: View {
 
     private var noKeyView: some View {
         VStack(spacing: 10) {
-            Image(systemName: "key.slash")
+            Image(systemName: "antenna.radiowaves.left.and.right.slash")
                 .font(.system(size: 28))
                 .foregroundColor(.secondary)
-            Text("No API key configured")
+            Text("Not connected")
                 .font(.system(size: 13, weight: .semibold))
-            Text("Open settings to connect to your Relay backend.")
+            Text("Get your Relay Token at:")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+            Button("tryrelayapp.com") {
+                NSWorkspace.shared.open(URL(string: "https://tryrelayapp.com/get-started")!)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundColor(RelayTheme.blue)
             Button("Open Settings") { showSettings = true }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                .padding(.top, 4)
         }
         .padding(28)
         .frame(maxWidth: .infinity)
@@ -179,11 +205,11 @@ struct TaskSection: View {
         VStack(spacing: 0) {
             HStack {
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundColor(accent == .primary ? .secondary : accent)
                 Spacer()
                 Text("\(tasks.count)")
-                    .font(.system(size: 10))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 14)
@@ -239,7 +265,7 @@ struct TaskRow: View {
                         Text("⚡")
                         Text(action)
                             .font(.system(size: 11))
-                            .foregroundColor(.orange)
+                            .foregroundColor(RelayTheme.pink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -259,16 +285,16 @@ struct PriorityBadge: View {
 
     var color: Color {
         switch priority {
-        case "urgent": return .red
-        case "high":   return .orange
-        case "medium": return .blue
+        case "urgent": return RelayTheme.urgent
+        case "high":   return RelayTheme.high
+        case "medium": return RelayTheme.medium
         default:       return .secondary
         }
     }
 
     var body: some View {
         Text(priority)
-            .font(.system(size: 9, weight: .bold))
+            .font(.system(size: 9, weight: .bold, design: .rounded))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(color.opacity(0.15))
@@ -282,9 +308,9 @@ struct StatusBadge: View {
 
     var color: Color {
         switch status {
-        case "in_progress": return .blue
-        case "done":        return .green
-        case "blocked":     return .red
+        case "in_progress": return RelayTheme.active
+        case "done":        return RelayTheme.done
+        case "blocked":     return RelayTheme.blocked
         default:            return .secondary
         }
     }
@@ -293,7 +319,7 @@ struct StatusBadge: View {
 
     var body: some View {
         Text(label)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 9, weight: .semibold, design: .rounded))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(color.opacity(0.12))

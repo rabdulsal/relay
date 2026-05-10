@@ -1,0 +1,107 @@
+default_platform :mac
+
+# ── App Store Connect API auth ────────────────────────────────────────────────
+# Set APPLE_KEY_ID, APPLE_ISSUER_ID, APPLE_KEY_CONTENT (base64-encoded .p8)
+# in your environment or a .env.secret file (gitignored).
+def api_key
+  app_store_connect_api_key(
+    key_id:        ENV["APPLE_KEY_ID"],
+    issuer_id:     ENV["APPLE_ISSUER_ID"],
+    key_content:   Base64.decode64(ENV["APPLE_KEY_CONTENT"] || ""),
+    is_key_content_base64: false,
+    duration:      1200,
+    in_house:      false,
+  )
+end
+
+platform :mac do
+
+  # ── build ──────────────────────────────────────────────────────────────────
+  # Local build only — no upload. Use for testing the archive.
+  #   fastlane build
+  lane :build do
+    increment_build_number(xcodeproj: "Relay.xcodeproj")
+    build_mac_app(
+      scheme:              "Relay",
+      configuration:       "Release",
+      output_directory:    "build",
+      output_name:         "Relay.app",
+      export_method:       "mac-application",
+      clean:               true,
+    )
+  end
+
+  # ── beta ──────────────────────────────────────────────────────────────────
+  # Build + upload to TestFlight for internal testing.
+  #   fastlane beta
+  lane :beta do
+    key = api_key
+    team_id = ENV["APPLE_TEAM_ID"] || "42B272KRRJ"
+    increment_build_number(xcodeproj: "Relay.xcodeproj")
+    build_mac_app(
+      scheme:            "Relay",
+      configuration:     "Release",
+      output_directory:  "build",
+      output_name:       "Relay.pkg",
+      export_method:     "app-store",
+      clean:             true,
+      xcargs:            "-allowProvisioningUpdates",
+      export_options: {
+        method:       "app-store",
+        teamID:       team_id,
+        signingStyle: "automatic",
+      },
+    )
+    upload_to_testflight(
+      api_key:           key,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  # ── release ───────────────────────────────────────────────────────────────
+  # Build + upload metadata + submit for App Store review.
+  #   fastlane release
+  lane :release do
+    key    = api_key
+    team_id = ENV["APPLE_TEAM_ID"] || "42B272KRRJ"
+    increment_build_number(xcodeproj: "Relay.xcodeproj")
+    build_mac_app(
+      scheme:            "Relay",
+      configuration:     "Release",
+      output_directory:  "build",
+      output_name:       "Relay.pkg",
+      export_method:     "app-store",
+      clean:             true,
+      xcargs:            "-allowProvisioningUpdates",
+      export_options: {
+        method:       "app-store",
+        teamID:       team_id,
+        signingStyle: "automatic",
+      },
+    )
+    deliver(
+      api_key:                        key,
+      pkg:                            "build/Relay.pkg",
+      metadata_path:                  "fastlane/metadata",
+      screenshots_path:               "fastlane/screenshots",
+      skip_screenshots:               !File.exist?("fastlane/screenshots/en-US"),
+      submit_for_review:              true,
+      automatic_release:              false,
+      force:                          true,
+      precheck_include_in_app_purchases: false,
+    )
+  end
+
+  # ── metadata_only ─────────────────────────────────────────────────────────
+  # Push description / keywords / release notes without a new build.
+  #   fastlane metadata_only
+  lane :metadata_only do
+    deliver(
+      api_key:          api_key,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      force:            true,
+    )
+  end
+
+end

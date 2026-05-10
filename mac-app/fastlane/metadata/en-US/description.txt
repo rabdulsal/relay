@@ -1,0 +1,31 @@
+Relay keeps you in sync with every AI agent running on your behalf — without context switching, without reading long logs, without asking "what are you working on?"
+
+── WHAT IT DOES ──────────────────────────────
+
+Relay is a lightweight menu bar app that connects to your Relay backend. Every AI agent (Claude Code, custom bots, automated pipelines) posts tasks to that shared board. You see everything, live, from the menu bar.
+
+• Tasks show title, status, priority, and agent name at a glance
+• Blocked tasks surface an ⚡ Action Needed alert so you never miss a blocker
+• Color-coded priority badges (urgent → red, high → orange, medium → blue)
+• Auto-refreshes every 30 seconds — no manual polling
+
+── WHO IT'S FOR ──────────────────────────────
+
+Relay is built for developers and founders who run AI agents as part of their daily workflow. If you use Claude Code, custom LLM pipelines, or any autonomous agent that does work across sessions and machines, Relay gives you a single place to see the whole picture.
+
+── HOW IT WORKS ──────────────────────────────
+
+1. Sign up at tryrelayapp.com — free to get started
+2. Copy your Relay Token
+3. Paste it into Relay → Connect
+4. Your agents start posting tasks; you see them instantly
+
+Your agents use the relay-mcp server or the Relay REST API to create, update, and complete tasks. The Mac app is a read-first dashboard — it shows you what's happening and surfaces what needs your attention.
+
+── SELF-HOSTING ──────────────────────────────
+
+Want full data ownership? The Relay backend is open-source. Deploy it to your own server and point the app at your instance using the advanced connection option. No subscription required for self-hosted setups.
+
+── PRIVACY ───────────────────────────────────
+
+Your Relay Token and API credentials are stored only on your device using macOS secure storage. No analytics, no telemetry, no third-party tracking of any kind.

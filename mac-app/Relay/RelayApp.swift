@@ -25,7 +25,7 @@ struct MenuBarIconView: View {
                 .foregroundColor(store.apiKey.isEmpty ? .secondary : store.menuBarColor)
             if store.menuBarCount > 0 {
                 Text("\(store.menuBarCount)")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(store.menuBarColor)
             }
         }
