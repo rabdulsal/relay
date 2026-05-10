@@ -4,7 +4,7 @@
  * External working memory for multi-agent systems.
  *
  * Config (env vars or claude_desktop_config.json args):
- *   RELAY_API_URL  — base URL of your Relay backend  (default: https://agent-task-tracker.onrender.com)
+ *   RELAY_API_URL  — base URL of your Relay backend  (default: https://tryrelayapp.com)
  *   RELAY_API_KEY  — x-api-key for the Relay backend
  *   RELAY_AGENT    — name to tag tasks with (default: "claude-code")
  */
@@ -14,7 +14,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const RELAY_TOKEN  = process.env.RELAY_TOKEN ?? "";
-const HOSTED_URL   = "https://agent-task-tracker.onrender.com";
+const HOSTED_URL   = "https://www.tryrelayapp.com";
 
 let BASE    = (process.env.RELAY_API_URL ?? HOSTED_URL).replace(/\/$/, "");
 let API_KEY = process.env.RELAY_API_KEY ?? "";

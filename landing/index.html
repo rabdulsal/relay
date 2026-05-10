@@ -19,9 +19,9 @@
       --text:      #f0f4ff;
       --muted:     #5a7296;
       --muted2:    #8aa6c8;
-      --violet:    #7c6bff;
-      --violet2:   #5b4de8;
-      --violet3:   #a78bfa;
+      --violet:    #3D7EF5;
+      --violet2:   #2E6AE0;
+      --violet3:   #7EB3FF;
       --emerald:   #34d399;
       --amber:     #fbbf24;
       --red:       #f87171;
@@ -57,7 +57,7 @@
 
     code {
       font-family: var(--mono);
-      background: rgba(124,107,255,.12);
+      background: rgba(61,126,245,.12);
       color: var(--violet3);
       padding: 2px 6px;
       border-radius: 4px;
@@ -92,7 +92,7 @@
     .logo-mark {
       width: 24px;
       height: 24px;
-      background: linear-gradient(135deg, var(--violet), var(--violet3));
+      background: linear-gradient(135deg, #3D7EF5, #F02D5A);
       border-radius: 6px;
       display: flex;
       align-items: center;
@@ -134,8 +134,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(124,107,255,.1);
-      border: 1px solid rgba(124,107,255,.3);
+      background: rgba(61,126,245,.1);
+      border: 1px solid rgba(61,126,245,.3);
       color: var(--violet3);
       padding: 5px 14px 5px 10px;
       border-radius: 100px;
@@ -162,7 +162,7 @@
       margin-bottom: 22px;
     }
     .hero h1 .hl {
-      background: linear-gradient(135deg, var(--violet3) 20%, var(--blue) 80%);
+      background: linear-gradient(135deg, #3D7EF5, #F02D5A);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -185,12 +185,12 @@
       font-weight: 700;
       letter-spacing: .01em;
       transition: background .15s, transform .1s, box-shadow .15s;
-      box-shadow: 0 0 0 rgba(124,107,255,0);
+      box-shadow: 0 0 0 rgba(61,126,245,0);
     }
     .btn-primary:hover {
       background: var(--violet2);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(124,107,255,.35);
+      box-shadow: 0 8px 24px rgba(61,126,245,.35);
     }
     .btn-secondary {
       color: var(--muted2);
@@ -271,7 +271,7 @@
       border-bottom: 1px solid var(--border);
       margin-bottom: 8px;
     }
-    .mb-group-label.amber { color: var(--amber); }
+    .mb-group-label.amber { color: #F02D5A; }
 
     .mb-row {
       display: flex;
@@ -286,7 +286,7 @@
     .mb-row.visible { opacity: 1; transform: none; }
     .mb-row:last-child { border-bottom: none; }
     .mb-row-text { flex: 1; font-size: 11px; line-height: 1.45; font-weight: 500; }
-    .mb-row-sub { font-size: 10px; color: var(--amber); margin-top: 3px; line-height: 1.4; }
+    .mb-row-sub { font-size: 10px; color: #F02D5A; margin-top: 3px; line-height: 1.4; }
     .mb-badge {
       font-size: 9px;
       font-weight: 700;
@@ -486,8 +486,8 @@
     }
     .callout-icon {
       width: 36px; height: 36px;
-      background: rgba(124,107,255,.12);
-      border: 1px solid rgba(124,107,255,.2);
+      background: rgba(61,126,245,.12);
+      border: 1px solid rgba(61,126,245,.2);
       border-radius: 9px;
       display: flex;
       align-items: center;
@@ -522,7 +522,7 @@
     .price-card.best {
       border-color: var(--violet);
       background: #0c1028;
-      box-shadow: 0 0 0 1px rgba(124,107,255,.15), 0 24px 48px rgba(0,0,0,.4);
+      box-shadow: 0 0 0 1px rgba(61,126,245,.15), 0 24px 48px rgba(0,0,0,.4);
     }
     .price-tier {
       font-family: var(--mono);
@@ -580,7 +580,7 @@
     .cta-strip {
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
-      background: linear-gradient(135deg, #0a0e1a 0%, #0e0d28 50%, #0a0e1a 100%);
+      background: linear-gradient(135deg, #0a0e1a 0%, #091428 50%, #0a0e1a 100%);
       padding: 80px 40px;
       text-align: center;
     }
@@ -678,7 +678,7 @@
 <nav>
   <div class="logo">
     <div class="logo-mark">↺</div>
-    relay
+    <span style="color:#3D7EF5">r</span>ela<span style="color:#F02D5A">y</span>
   </div>
   <div class="nav-right">
     <a class="nav-link" href="#why">Why Relay</a>
@@ -1022,7 +1022,7 @@ curl -X PATCH https://relay.run/api/tasks/<span class="c-var">TASK_ID</span> \
   <div class="footer-links">
     <a href="https://github.com/rabdulsal/relay" target="_blank">GitHub</a>
     <a href="/docs">API docs</a>
-    <a href="https://webslingerai.com" target="_blank">WebSlingerAI</a>
+    <a href="https://salaamsolutions.io" target="_blank">Salaam Solutions</a>
   </div>
 </footer>
 
@@ -1064,7 +1064,7 @@ function joinWaitlist() {
   const email = document.getElementById('wl-email').value.trim();
   if (!email || !email.includes('@')) return;
   // POST to backend; silent fail is fine — show success regardless
-  fetch('https://agent-task-tracker.onrender.com/waitlist', {
+  fetch('https://tryrelayapp.com/waitlist', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, source: 'relay-landing' }),
