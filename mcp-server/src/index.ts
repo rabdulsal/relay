@@ -59,7 +59,7 @@ async function relayFetch(path: string, method = "GET", body?: object) {
 
 const server = new McpServer({
   name:    "relay",
-  version: "1.3.0",
+  version: "1.3.1",
 });
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ server.tool(
       return { content: [{ type: "text", text: "No tasks found." }] };
     }
     const lines = data.tasks.map((t: any) =>
-      `[${t.id.slice(0, 8)}] ${t.status.padEnd(11)} ${t.priority.padEnd(7)} ${t.title}${t.action_needed ? `\n  ⚡ ${t.action_needed}` : ""}`,
+      `[${t.id}] ${t.status.padEnd(11)} ${t.priority.padEnd(7)} ${t.title}${t.action_needed ? `\n  ⚡ ${t.action_needed}` : ""}`,
     );
     return { content: [{ type: "text", text: lines.join("\n") }] };
   },
