@@ -72,12 +72,38 @@ class TaskStore: ObservableObject {
         return try JSONDecoder().decode(RelaySummary.self, from: data)
     }
 
+    func updateStatus(taskId: String, status: String) async {
+        guard !apiKey.isEmpty else { return }
+        do {
+            _ = try await patch("/tasks/\(taskId)", body: ["status": status])
+            await refresh()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func get(_ path: String) async throws -> Data {
         guard let url = URL(string: apiURL.trimmingCharacters(in: .whitespaces) + path) else {
             throw URLError(.badURL)
         }
         var req = URLRequest(url: url, timeoutInterval: 10)
         req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        let (data, res) = try await URLSession.shared.data(for: req)
+        guard (res as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return data
+    }
+
+    private func patch(_ path: String, body: [String: Any]) async throws -> Data {
+        guard let url = URL(string: apiURL.trimmingCharacters(in: .whitespaces) + path) else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.httpMethod = "PATCH"
+        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await URLSession.shared.data(for: req)
         guard (res as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)

@@ -34,7 +34,7 @@ struct ContentView: View {
                 footer
             }
         }
-        .frame(width: 340)
+        .frame(width: 420)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             if !hasSeenOnboarding && store.apiKey.isEmpty {
@@ -230,16 +230,53 @@ struct TaskSection: View {
 
 struct TaskRow: View {
     let task: RelayTask
-    @State private var expanded = false
+    @EnvironmentObject var store: TaskStore
+    @State private var expanded    = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var isUpdating  = false
+
+    private let statusRevealWidth: CGFloat = 186
+    private let blockRevealWidth:  CGFloat = 80
+    private let snapThreshold:     CGFloat = 44
 
     var body: some View {
+        ZStack(alignment: .leading) {
+            if dragOffset > 0 { statusStrip }
+            if dragOffset < 0 { blockButton }
+
+            mainContent
+                .offset(x: dragOffset)
+                .gesture(
+                    DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                        .onChanged { v in
+                            let t = v.translation.width
+                            guard abs(t) > abs(v.translation.height) else { return }
+                            dragOffset = t > 0
+                                ? min(t, statusRevealWidth + 16)
+                                : max(t, -(blockRevealWidth + 16))
+                        }
+                        .onEnded { v in
+                            let t = v.translation.width
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                if      t >  snapThreshold { dragOffset =  statusRevealWidth }
+                                else if t < -snapThreshold { dragOffset = -blockRevealWidth  }
+                                else                       { dragOffset =  0                 }
+                            }
+                        }
+                )
+        }
+        .clipped()
+    }
+
+    // ── Main content ──────────────────────────────────────────────────────────
+
+    private var mainContent: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(task.title)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(expanded ? nil : 2)
-
                     if let agent = task.agent_name {
                         Text(agent)
                             .font(.system(size: 10))
@@ -247,9 +284,13 @@ struct TaskRow: View {
                     }
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    PriorityBadge(priority: task.priority)
-                    StatusBadge(status: task.status)
+                if isUpdating {
+                    ProgressView().scaleEffect(0.55).frame(width: 16, height: 16)
+                } else {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        PriorityBadge(priority: task.priority)
+                        StatusBadge(status: task.status)
+                    }
                 }
             }
 
@@ -273,8 +314,74 @@ struct TaskRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.windowBackgroundColor))
         .contentShape(Rectangle())
-        .onTapGesture { withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() } }
+        .onTapGesture {
+            if dragOffset != 0 {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) { dragOffset = 0 }
+            } else {
+                withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+            }
+        }
+    }
+
+    // ── Status strip (right swipe) ────────────────────────────────────────────
+
+    private var statusStrip: some View {
+        HStack(spacing: 0) {
+            statusButton("pending",     "clock",                 .secondary,      "pending")
+            statusButton("in_progress", "bolt.fill",             RelayTheme.active, "active")
+            statusButton("done",        "checkmark.circle.fill", RelayTheme.done,  "done")
+        }
+        .frame(width: statusRevealWidth)
+        .frame(maxHeight: .infinity)
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private func statusButton(_ status: String, _ icon: String, _ color: Color, _ label: String) -> some View {
+        let isCurrent = task.status == status
+        return Button { applyStatus(status) } label: {
+            VStack(spacing: 3) {
+                Image(systemName: icon).font(.system(size: 13))
+                Text(label).font(.system(size: 8, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(isCurrent ? color : color.opacity(0.4))
+            .frame(width: statusRevealWidth / 3)
+            .frame(maxHeight: .infinity)
+            .background(isCurrent ? color.opacity(0.13) : Color.clear)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // ── Block button (left swipe) ─────────────────────────────────────────────
+
+    private var blockButton: some View {
+        HStack {
+            Spacer()
+            Button { applyStatus("blocked") } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: "hand.raised.fill").font(.system(size: 13))
+                    Text("block").font(.system(size: 8, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .frame(width: blockRevealWidth)
+                .frame(maxHeight: .infinity)
+                .background(RelayTheme.pink)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private func applyStatus(_ status: String) {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) { dragOffset = 0 }
+        isUpdating = true
+        Task {
+            await store.updateStatus(taskId: task.id, status: status)
+            isUpdating = false
+        }
     }
 }
 

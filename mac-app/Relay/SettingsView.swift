@@ -54,7 +54,7 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(width: 340)
+        .frame(width: 420)
         .onAppear {
             token       = store.relayToken
             advancedURL = store.apiURL
