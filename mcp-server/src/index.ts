@@ -12,8 +12,21 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { execSync } from "child_process";
 
-const RELAY_TOKEN  = process.env.RELAY_TOKEN ?? "";
+const RELAY_TOKEN       = process.env.RELAY_TOKEN ?? "";
+const CAPTURE_GIT       = process.env.RELAY_CAPTURE_GIT === "true";
+const AGENT_PLATFORM    = process.env.RELAY_AGENT_PLATFORM ?? "claude_code";
+
+function gitContext(): { git_branch?: string; git_commit?: string; git_repo?: string } {
+  if (!CAPTURE_GIT) return {};
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", stdio: ["pipe","pipe","pipe"] }).trim();
+    const commit = execSync("git rev-parse --short HEAD",      { encoding: "utf8", stdio: ["pipe","pipe","pipe"] }).trim();
+    const repo   = execSync("git rev-parse --show-toplevel",   { encoding: "utf8", stdio: ["pipe","pipe","pipe"] }).trim().split("/").pop() ?? "";
+    return { git_branch: branch, git_commit: commit, git_repo: repo };
+  } catch { return {}; }
+}
 const HOSTED_URL   = "https://www.tryrelayapp.com";
 
 let BASE    = (process.env.RELAY_API_URL ?? HOSTED_URL).replace(/\/$/, "");
@@ -59,7 +72,7 @@ async function relayFetch(path: string, method = "GET", body?: object) {
 
 const server = new McpServer({
   name:    "relay",
-  version: "1.3.1",
+  version: "1.4.0",
 });
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
@@ -87,16 +100,29 @@ server.tool(
   "relay_create",
   "Register a new task in Relay so other agents and the human can see it. Call this when starting a significant piece of work.",
   {
-    title:         z.string().describe("Short description of the task"),
-    status:        z.enum(["pending", "in_progress", "done", "blocked"]).default("in_progress"),
-    priority:      z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-    notes:         z.string().optional().describe("Context, approach, or progress details"),
-    action_needed: z.string().optional().describe("Set this if a human must intervene before you can continue"),
+    title:          z.string().describe("Short description of the task"),
+    status:         z.enum(["pending", "in_progress", "done", "blocked"]).default("in_progress"),
+    priority:       z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+    notes:          z.string().optional().describe("Context, approach, or progress details"),
+    action_needed:  z.string().optional().describe("Set this if a human must intervene before you can continue"),
+    code_refs:      z.array(z.object({
+                      path:  z.string().describe("File path, e.g. src/routes/billing.ts"),
+                      lines: z.string().optional().describe("Line range, e.g. 45-78"),
+                      label: z.string().optional().describe("Short label for this ref"),
+                    })).optional().describe("Source file references so any agent can jump straight to the code"),
+    links:          z.array(z.object({
+                      url:   z.string().describe("URL"),
+                      label: z.string().describe("Human-readable label, e.g. 'GitHub PR', 'Render deploy'"),
+                    })).optional().describe("Relevant external links — PRs, dashboards, deploys"),
   },
-  async ({ title, status, priority, notes, action_needed }) => {
+  async ({ title, status, priority, notes, action_needed, code_refs, links }) => {
     const data = await relayFetch("/tasks", "POST", {
       title, status, priority, notes, action_needed,
       agent_name: AGENT,
+      agent_platform: AGENT_PLATFORM,
+      code_refs,
+      links,
+      ...gitContext(),
     });
     return {
       content: [{
@@ -116,13 +142,26 @@ server.tool(
     notes:         z.string().optional().describe("Updated progress notes — append don't replace"),
     priority:      z.enum(["low", "medium", "high", "urgent"]).optional(),
     action_needed: z.string().optional().describe("Describe what the human needs to do, or pass empty string to clear"),
+    code_refs:     z.array(z.object({
+                     path:  z.string(),
+                     lines: z.string().optional(),
+                     label: z.string().optional(),
+                   })).optional().describe("Add or update source file references"),
+    links:         z.array(z.object({
+                     url:   z.string(),
+                     label: z.string(),
+                   })).optional().describe("Add or update relevant links"),
+    evidence:      z.string().optional().describe("Proof of work — test output, deploy URL, screenshot path"),
   },
-  async ({ id, status, notes, priority, action_needed }) => {
-    const patch: Record<string, string> = {};
-    if (status)        patch.status        = status;
-    if (notes)         patch.notes         = notes;
-    if (priority)      patch.priority      = priority;
+  async ({ id, status, notes, priority, action_needed, code_refs, links, evidence }) => {
+    const patch: Record<string, unknown> = {};
+    if (status)                      patch.status        = status;
+    if (notes)                       patch.notes         = notes;
+    if (priority)                    patch.priority      = priority;
     if (action_needed !== undefined) patch.action_needed = action_needed;
+    if (code_refs)                   patch.code_refs     = code_refs;
+    if (links)                       patch.links         = links;
+    if (evidence)                    patch.evidence      = evidence;
 
     const data = await relayFetch(`/tasks/${id}`, "PATCH", patch);
     return {
@@ -138,11 +177,16 @@ server.tool(
   "relay_done",
   "Mark a task complete. Pass a brief summary of what was accomplished.",
   {
-    id:    z.string().describe("Task ID"),
-    notes: z.string().optional().describe("What was accomplished — kept for the report"),
+    id:       z.string().describe("Task ID"),
+    notes:    z.string().optional().describe("What was accomplished — kept for the report"),
+    evidence: z.string().optional().describe("Proof of completion — deploy URL, test output, screenshot path"),
   },
-  async ({ id, notes }) => {
-    const data = await relayFetch(`/tasks/${id}`, "PATCH", { status: "done", ...(notes ? { notes } : {}) });
+  async ({ id, notes, evidence }) => {
+    const data = await relayFetch(`/tasks/${id}`, "PATCH", {
+      status: "done",
+      ...(notes    ? { notes }    : {}),
+      ...(evidence ? { evidence } : {}),
+    });
     return {
       content: [{
         type: "text",
@@ -182,9 +226,25 @@ server.tool(
     if (!data.tasks?.length) {
       return { content: [{ type: "text", text: "No tasks found." }] };
     }
-    const lines = data.tasks.map((t: any) =>
-      `[${t.id}] ${t.status.padEnd(11)} ${t.priority.padEnd(7)} ${t.title}${t.action_needed ? `\n  ⚡ ${t.action_needed}` : ""}`,
-    );
+    const lines = data.tasks.map((t: any) => {
+      let line = `[${t.id}] ${t.status.padEnd(11)} ${t.priority.padEnd(7)} ${t.title}`;
+      if (t.action_needed) line += `\n  ⚡ ${t.action_needed}`;
+      if (t.git_branch)    line += `\n  ⎇  ${t.git_branch}${t.git_commit ? ` @ ${t.git_commit}` : ""}`;
+      if (t.code_refs) {
+        try {
+          const refs: any[] = JSON.parse(t.code_refs);
+          refs.forEach(r => { line += `\n  📄 ${r.path}${r.lines ? `:${r.lines}` : ""}${r.label ? ` (${r.label})` : ""}`; });
+        } catch {}
+      }
+      if (t.links) {
+        try {
+          const lnks: any[] = JSON.parse(t.links);
+          lnks.forEach(l => { line += `\n  🔗 ${l.label}: ${l.url}`; });
+        } catch {}
+      }
+      if (t.evidence) line += `\n  ✅ ${t.evidence}`;
+      return line;
+    });
     return { content: [{ type: "text", text: lines.join("\n") }] };
   },
 );
