@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import Carbon
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover = NSPopover()
     private var mainWindow: NSWindow?
     private var eventMonitor: Any?
+    private var hotKeyRef: EventHotKeyRef?
     private var cancellables = Set<AnyCancellable>()
 
     // Single store shared across popover, window, and icon
@@ -18,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPopover()
         setupEventMonitor()
+        setupGlobalHotkey()
         observeStore()
     }
 
@@ -166,7 +169,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refreshTasks() { Task { await store.refresh() } }
 
+    // ── Global hotkey (⌥Space) ────────────────────────────────────────────────
+
+    private func setupGlobalHotkey() {
+        // Register Option+Space as a system-wide hotkey to open the main window
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                      eventKind:  OSType(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(),
+                            { _, event, userData -> OSStatus in
+                                guard let ptr = userData else { return noErr }
+                                let delegate = Unmanaged<AppDelegate>.fromOpaque(ptr).takeUnretainedValue()
+                                Task { @MainActor in delegate.openMainWindow() }
+                                return noErr
+                            },
+                            1, &eventType,
+                            Unmanaged.passUnretained(self).toOpaque(),
+                            nil)
+
+        let hotKeyID = EventHotKeyID(signature: OSType(0x524C5959), id: 1) // 'RLYY'
+        // kVK_Space = 49, optionKey modifier
+        RegisterEventHotKey(49, UInt32(optionKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+    }
+
     deinit {
         if let m = eventMonitor { NSEvent.removeMonitor(m) }
+        if let h = hotKeyRef { UnregisterEventHotKey(h) }
     }
 }
