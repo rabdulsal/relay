@@ -71,6 +71,14 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
 
+                    Button(action: { (NSApp.delegate as? AppDelegate)?.openMainWindow() }) {
+                        Image(systemName: "rectangle.expand.vertical")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    .help("Open full window")
+
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gear")
                             .font(.system(size: 12))
