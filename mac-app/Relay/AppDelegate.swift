@@ -4,7 +4,7 @@ import Combine
 import Carbon
 
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var statusItem: NSStatusItem!
     private var popover = NSPopover()
     private var mainWindow: NSWindow?
@@ -156,10 +156,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         win.contentViewController = NSHostingController(
             rootView: MainWindowView().environmentObject(store)
         )
+        win.delegate = self
+        win.setFrameAutosaveName("RelayMainWindow")
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        NSApp.setActivationPolicy(.regular)
         mainWindow = win
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        mainWindow = nil
+        NSApp.setActivationPolicy(.accessory)
     }
 
     @objc private func openSettings() {

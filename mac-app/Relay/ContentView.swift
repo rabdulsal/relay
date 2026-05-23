@@ -298,6 +298,11 @@ struct TaskRow: View {
                     VStack(alignment: .trailing, spacing: 3) {
                         PriorityBadge(priority: task.priority)
                         StatusBadge(status: task.status)
+                        if !task.updateAge.isEmpty {
+                            Text(task.updateAge)
+                                .font(.system(size: 9))
+                                .foregroundColor(task.isStale ? RelayTheme.pink.opacity(0.8) : .secondary.opacity(0.5))
+                        }
                     }
                 }
             }

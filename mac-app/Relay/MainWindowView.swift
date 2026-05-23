@@ -330,6 +330,12 @@ struct WindowTaskRow: View {
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         }
+                        Spacer()
+                        if !task.updateAge.isEmpty {
+                            Text(task.updateAge)
+                                .font(.system(size: 10))
+                                .foregroundColor(task.isStale ? RelayTheme.pink.opacity(0.8) : .secondary.opacity(0.6))
+                        }
                     }
                 }
 

@@ -19,6 +19,27 @@ struct RelayTask: Codable, Identifiable, Equatable {
     let updated_at:     String
     let completed_at:   String?
 
+    var updatedDate: Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: updated_at) ?? ISO8601DateFormatter().date(from: updated_at)
+    }
+
+    var updateAge: String {
+        guard let date = updatedDate else { return "" }
+        let secs = Date().timeIntervalSince(date)
+        if secs < 120  { return "just now" }
+        if secs < 3600 { return "\(Int(secs / 60))m ago" }
+        if secs < 86400 { return "\(Int(secs / 3600))h ago" }
+        return "\(Int(secs / 86400))d ago"
+    }
+
+    // Tasks not updated in >24h are flagged as stale
+    var isStale: Bool {
+        guard let date = updatedDate else { return false }
+        return Date().timeIntervalSince(date) > 86400
+    }
+
     var priorityOrder: Int {
         switch priority {
         case "urgent": return 0
