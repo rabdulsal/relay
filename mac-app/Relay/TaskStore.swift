@@ -82,6 +82,41 @@ class TaskStore: ObservableObject {
         }
     }
 
+    func updateTask(taskId: String, fields: [String: Any]) async {
+        guard !apiKey.isEmpty else { return }
+        do {
+            _ = try await patch("/tasks/\(taskId)", body: fields)
+            await refresh()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func createTask(title: String, status: String = "pending", priority: String = "medium", notes: String? = nil) async -> RelayTask? {
+        guard !apiKey.isEmpty, !title.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        var body: [String: Any] = ["title": title, "status": status, "priority": priority]
+        if let n = notes, !n.isEmpty { body["notes"] = n }
+        do {
+            let data = try await post("/tasks", body: body)
+            let created = try JSONDecoder().decode(TaskResponse.self, from: data).task
+            await refresh()
+            return created
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
+    func deleteTask(taskId: String) async {
+        guard !apiKey.isEmpty else { return }
+        do {
+            _ = try await delete("/tasks/\(taskId)")
+            await refresh()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func get(_ path: String) async throws -> Data {
         guard let url = URL(string: apiURL.trimmingCharacters(in: .whitespaces) + path) else {
             throw URLError(.badURL)
@@ -109,6 +144,35 @@ class TaskStore: ObservableObject {
             throw URLError(.badServerResponse)
         }
         return data
+    }
+
+    private func post(_ path: String, body: [String: Any]) async throws -> Data {
+        guard let url = URL(string: apiURL.trimmingCharacters(in: .whitespaces) + path) else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.httpMethod = "POST"
+        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await URLSession.shared.data(for: req)
+        guard let code = (res as? HTTPURLResponse)?.statusCode, (200...201).contains(code) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
+    }
+
+    private func delete(_ path: String) async throws {
+        guard let url = URL(string: apiURL.trimmingCharacters(in: .whitespaces) + path) else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.httpMethod = "DELETE"
+        req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        let (_, res) = try await URLSession.shared.data(for: req)
+        guard (res as? HTTPURLResponse)?.statusCode == 204 else {
+            throw URLError(.badServerResponse)
+        }
     }
 
     // ── Derived state ─────────────────────────────────────────────────────────
