@@ -15,6 +15,8 @@ struct RelayTask: Codable, Identifiable, Equatable {
     let git_commit:     String?
     let git_repo:       String?
     let evidence:       String?
+    let due_date:       String?
+    let sort_order:     Int?
     let created_at:     String
     let updated_at:     String
     let completed_at:   String?

@@ -107,6 +107,15 @@ class TaskStore: ObservableObject {
         }
     }
 
+    func reorderTasks(_ ids: [String]) async {
+        guard !apiKey.isEmpty else { return }
+        do {
+            _ = try await patch("/tasks/reorder", body: ["ids": ids])
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     func deleteTask(taskId: String) async {
         guard !apiKey.isEmpty else { return }
         do {

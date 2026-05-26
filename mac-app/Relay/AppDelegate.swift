@@ -143,13 +143,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 580),
+            contentRect: NSRect(x: 0, y: 0, width: 960, height: 660),
             styleMask:   [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing:     .buffered,
             defer:       false
         )
         win.title = "Relay"
-        win.minSize = NSSize(width: 620, height: 440)
+        win.minSize = NSSize(width: 720, height: 520)
         win.titlebarAppearsTransparent = true
         win.toolbarStyle = .unified
         win.isReleasedWhenClosed = false

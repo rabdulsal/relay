@@ -4,20 +4,23 @@ import SwiftUI
 
 struct MainWindowView: View {
     @EnvironmentObject var store: TaskStore
-    @State private var filter:      FilterTab = .all
-    @State private var showCreate   = false
-    @State private var selectedId:  String?   = nil
+    @State private var filter:        FilterTab    = .all
+    @State private var showCreate     = false
+    @State private var selectedId:    String?      = nil
+    @State private var displayTasks:  [RelayTask]  = []
 
-    var filteredTasks: [RelayTask] {
+    private func filteredFrom(_ tasks: [RelayTask]) -> [RelayTask] {
         switch filter {
-        case .all:          return store.tasks
-        case .actionNeeded: return store.actionNeeded
-        case .active:       return store.inProgress
-        case .pending:      return store.pending
-        case .blocked:      return store.blocked
-        case .done:         return store.done
+        case .all:          return tasks
+        case .actionNeeded: return tasks.filter { $0.action_needed != nil && $0.status != "done" }
+        case .active:       return tasks.filter { $0.status == "in_progress" }
+        case .pending:      return tasks.filter { $0.status == "pending" }
+        case .blocked:      return tasks.filter { $0.status == "blocked" }
+        case .done:         return tasks.filter { $0.status == "done" }
         }
     }
+
+    var filteredTasks: [RelayTask] { filteredFrom(store.tasks) }
 
     var body: some View {
         HSplitView {
@@ -31,26 +34,33 @@ struct MainWindowView: View {
 
                     if store.apiKey.isEmpty {
                         notConnectedView
-                    } else if filteredTasks.isEmpty && !store.loading {
+                    } else if displayTasks.isEmpty && !showCreate && !store.loading {
                         emptyView
                     } else {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                if showCreate {
-                                    CreateTaskRow(isPresented: $showCreate)
-                                        .environmentObject(store)
-                                    Divider()
-                                }
-                                ForEach(filteredTasks) { task in
-                                    WindowTaskRow(task: task, isSelected: selectedId == task.id) {
-                                        selectedId = selectedId == task.id ? nil : task.id
-                                    }
+                        List {
+                            if showCreate {
+                                CreateTaskRow(isPresented: $showCreate)
                                     .environmentObject(store)
-                                    Divider().padding(.leading, 16)
-                                }
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowBackground(Color(NSColor.controlBackgroundColor))
+                                    .listRowSeparator(.hidden)
                             }
-                            .padding(.bottom, 20)
+                            ForEach(displayTasks) { task in
+                                WindowTaskRow(task: task, isSelected: selectedId == task.id) {
+                                    selectedId = selectedId == task.id ? nil : task.id
+                                }
+                                .environmentObject(store)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color(NSColor.windowBackgroundColor))
+                                .listRowSeparator(.visible, edges: .bottom)
+                            }
+                            .onMove { from, to in
+                                withAnimation { displayTasks.move(fromOffsets: from, toOffset: to) }
+                                Task { await store.reorderTasks(displayTasks.map(\.id)) }
+                            }
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
                 }
             }
@@ -58,6 +68,18 @@ struct MainWindowView: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear { displayTasks = filteredTasks }
+        .onChange(of: store.tasks) { newTasks in
+            let currentIds = Set(displayTasks.map(\.id))
+            let newIds     = Set(filteredFrom(newTasks).map(\.id))
+            if currentIds == newIds {
+                // Content-only update — preserve manual order
+                displayTasks = displayTasks.compactMap { t in newTasks.first { $0.id == t.id } }
+            } else {
+                displayTasks = filteredFrom(newTasks)
+            }
+        }
+        .onChange(of: filter) { _ in displayTasks = filteredTasks }
     }
 
     // ── Sidebar ───────────────────────────────────────────────────────────────
@@ -438,6 +460,28 @@ struct WindowTaskRow: View {
                         }
                     }
 
+                    // Priority picker
+                    HStack(spacing: 8) {
+                        Text("Priority")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                        ForEach(["low", "medium", "high", "urgent"], id: \.self) { p in
+                            Button(action: {
+                                Task { await store.updateTask(taskId: task.id, fields: ["priority": p]) }
+                            }) {
+                                Text(p)
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(task.priority == p ? priorityColor(p).opacity(0.2) : Color.secondary.opacity(0.08))
+                                    .foregroundColor(task.priority == p ? priorityColor(p) : .secondary)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+
                     // Status picker
                     HStack(spacing: 8) {
                         Text("Status")
@@ -456,6 +500,43 @@ struct WindowTaskRow: View {
                                     .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+
+                    // Due date (optional)
+                    HStack(spacing: 8) {
+                        Text("Due")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                        if let dateStr = task.due_date, let date = Self.parseDueDate(dateStr) {
+                            DatePicker("", selection: Binding(
+                                get: { date },
+                                set: { newDate in
+                                    let fmt = DateFormatter()
+                                    fmt.dateFormat = "yyyy-MM-dd"
+                                    Task { await store.updateTask(taskId: task.id, fields: ["due_date": fmt.string(from: newDate)]) }
+                                }
+                            ), displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            Button {
+                                Task { await store.updateTask(taskId: task.id, fields: ["due_date": NSNull()]) }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary.opacity(0.6))
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button("+ Set") {
+                                let fmt = DateFormatter()
+                                fmt.dateFormat = "yyyy-MM-dd"
+                                Task { await store.updateTask(taskId: task.id, fields: ["due_date": fmt.string(from: Date())]) }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                         }
                         Spacer()
                     }
@@ -526,6 +607,21 @@ struct WindowTaskRow: View {
 
     private func cancelEdits() {
         isEditing = false
+    }
+
+    private func priorityColor(_ p: String) -> Color {
+        switch p {
+        case "urgent": return RelayTheme.urgent
+        case "high":   return RelayTheme.high
+        case "medium": return RelayTheme.medium
+        default:       return .secondary
+        }
+    }
+
+    private static func parseDueDate(_ str: String) -> Date? {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.date(from: str)
     }
 
     private func saveEdits() async {
