@@ -4,23 +4,31 @@ import SwiftUI
 
 struct MainWindowView: View {
     @EnvironmentObject var store: TaskStore
-    @State private var filter:        FilterTab    = .all
-    @State private var showCreate     = false
-    @State private var selectedId:    String?      = nil
-    @State private var displayTasks:  [RelayTask]  = []
+    @State private var filter:     FilterTab = .all
+    @State private var showCreate  = false
+    @State private var selectedId: String?   = nil
+    @State private var orderedIds: [String]  = []
 
-    private func filteredFrom(_ tasks: [RelayTask]) -> [RelayTask] {
+    var filteredTasks: [RelayTask] {
         switch filter {
-        case .all:          return tasks
-        case .actionNeeded: return tasks.filter { $0.action_needed != nil && $0.status != "done" }
-        case .active:       return tasks.filter { $0.status == "in_progress" }
-        case .pending:      return tasks.filter { $0.status == "pending" }
-        case .blocked:      return tasks.filter { $0.status == "blocked" }
-        case .done:         return tasks.filter { $0.status == "done" }
+        case .all:          return store.tasks
+        case .actionNeeded: return store.actionNeeded
+        case .active:       return store.inProgress
+        case .pending:      return store.pending
+        case .blocked:      return store.blocked
+        case .done:         return store.done
         }
     }
 
-    var filteredTasks: [RelayTask] { filteredFrom(store.tasks) }
+    // Applies the user's drag order when it covers the exact current task set;
+    // falls back to server order when tasks are added, removed, or filter changes.
+    var listTasks: [RelayTask] {
+        let filtered = filteredTasks
+        guard Set(orderedIds) == Set(filtered.map(\.id)), !orderedIds.isEmpty else {
+            return filtered
+        }
+        return orderedIds.compactMap { id in filtered.first { $0.id == id } }
+    }
 
     var body: some View {
         HSplitView {
@@ -34,7 +42,7 @@ struct MainWindowView: View {
 
                     if store.apiKey.isEmpty {
                         notConnectedView
-                    } else if displayTasks.isEmpty && !showCreate && !store.loading {
+                    } else if listTasks.isEmpty && !showCreate && !store.loading {
                         emptyView
                     } else {
                         List {
@@ -45,7 +53,7 @@ struct MainWindowView: View {
                                     .listRowBackground(Color(NSColor.controlBackgroundColor))
                                     .listRowSeparator(.hidden)
                             }
-                            ForEach(displayTasks) { task in
+                            ForEach(listTasks) { task in
                                 WindowTaskRow(task: task, isSelected: selectedId == task.id) {
                                     selectedId = selectedId == task.id ? nil : task.id
                                 }
@@ -55,8 +63,10 @@ struct MainWindowView: View {
                                 .listRowSeparator(.visible, edges: .bottom)
                             }
                             .onMove { from, to in
-                                withAnimation { displayTasks.move(fromOffsets: from, toOffset: to) }
-                                Task { await store.reorderTasks(displayTasks.map(\.id)) }
+                                var ids = listTasks.map(\.id)
+                                ids.move(fromOffsets: from, toOffset: to)
+                                orderedIds = ids
+                                Task { await store.reorderTasks(ids) }
                             }
                         }
                         .listStyle(.plain)
@@ -68,18 +78,6 @@ struct MainWindowView: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .background(Color(NSColor.windowBackgroundColor))
-        .onAppear { displayTasks = filteredTasks }
-        .onChange(of: store.tasks) { newTasks in
-            let currentIds = Set(displayTasks.map(\.id))
-            let newIds     = Set(filteredFrom(newTasks).map(\.id))
-            if currentIds == newIds {
-                // Content-only update — preserve manual order
-                displayTasks = displayTasks.compactMap { t in newTasks.first { $0.id == t.id } }
-            } else {
-                displayTasks = filteredFrom(newTasks)
-            }
-        }
-        .onChange(of: filter) { _ in displayTasks = filteredTasks }
     }
 
     // ── Sidebar ───────────────────────────────────────────────────────────────
@@ -122,7 +120,7 @@ struct MainWindowView: View {
                             .foregroundColor(.secondary)
                     }
                 } else if let date = store.lastRefresh {
-                    Text("Updated \(date, style: .relative) ago")
+                    Text("Refreshed \(date.formatted(.dateTime.hour().minute()))")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }

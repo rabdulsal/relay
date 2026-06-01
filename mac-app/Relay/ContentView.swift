@@ -181,7 +181,7 @@ struct ContentView: View {
     private var footer: some View {
         HStack {
             if let last = store.lastRefresh {
-                Text("Updated \(last, style: .relative) ago")
+                Text("Refreshed \(last.formatted(.dateTime.hour().minute()))")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
