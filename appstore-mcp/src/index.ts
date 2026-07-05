@@ -7,23 +7,27 @@
  *  - Shell-out to `fastlane mac beta` for archive+sign+upload (the one step
  *    the REST API cannot do), run as an async job with polling
  *
- * Env vars (same names the Fastfile uses — one credential set for both):
- *   APPLE_KEY_ID       ASC API key ID                       (required)
- *   APPLE_ISSUER_ID    ASC issuer ID                        (required)
- *   APPLE_KEY_CONTENT  base64-encoded .p8 private key       (required, or ASC_KEY_PATH)
- *   ASC_KEY_PATH       path to the .p8 file                 (alternative to APPLE_KEY_CONTENT)
- *   APPLE_TEAM_ID      Apple Developer team ID              (required for builds)
- *   ASC_BUNDLE_ID      app bundle ID    (default: com.salaamsolutions.relay)
- *   ASC_MAC_APP_DIR    path to mac-app  (default: <repo>/mac-app relative to this package)
+ * Env vars (credential names match fastlane's app_store_connect_api_key —
+ * one credential set serves both):
+ *   APPLE_KEY_ID          ASC API key ID                     (required)
+ *   APPLE_ISSUER_ID       ASC issuer ID                      (required)
+ *   APPLE_KEY_CONTENT     base64-encoded .p8 private key     (required, or ASC_KEY_PATH)
+ *   ASC_KEY_PATH          path to the .p8 file               (alternative to APPLE_KEY_CONTENT)
+ *   APPLE_TEAM_ID         Apple Developer team ID            (required for builds)
+ *   ASC_BUNDLE_ID         app bundle ID                      (required)
+ *   ASC_PROJECT_DIR       Xcode project root, where fastlane runs   (default: cwd)
+ *   ASC_PLATFORM          IOS | MAC_OS | TV_OS | VISION_OS   (default: IOS)
+ *   ASC_FASTLANE_LANE     lane for build+upload              (default: beta)
+ *   ASC_FASTLANE_PLATFORM fastlane platform prefix, e.g. "mac" or "ios"  (default: none)
+ *   ASC_UPLOAD_CMD        full command override for upload, e.g. "bundle exec fastlane ios beta"
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import { credentialProblems } from "./auth.js";
 import {
@@ -32,9 +36,29 @@ import {
 } from "./asc.js";
 import { startJob, getJob, tailLog } from "./jobs.js";
 
-const BUNDLE_ID = process.env.ASC_BUNDLE_ID ?? "com.salaamsolutions.relay";
-const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const MAC_APP_DIR = process.env.ASC_MAC_APP_DIR ?? resolve(PKG_ROOT, "..", "mac-app");
+const BUNDLE_ID = process.env.ASC_BUNDLE_ID ?? "";
+const PROJECT_DIR = resolve(
+  process.env.ASC_PROJECT_DIR ?? process.env.ASC_MAC_APP_DIR ?? process.cwd(),
+);
+const PLATFORM = process.env.ASC_PLATFORM ?? "IOS";
+const FASTLANE_LANE = process.env.ASC_FASTLANE_LANE ?? "beta";
+const FASTLANE_PLATFORM = process.env.ASC_FASTLANE_PLATFORM ?? "";
+
+function uploadCommand(): { command: string; args: string[] } {
+  if (process.env.ASC_UPLOAD_CMD) {
+    const [command, ...args] = process.env.ASC_UPLOAD_CMD.split(/\s+/);
+    return { command, args };
+  }
+  const args = FASTLANE_PLATFORM ? [FASTLANE_PLATFORM, FASTLANE_LANE] : [FASTLANE_LANE];
+  return { command: "fastlane", args };
+}
+
+function requireBundleId(): string {
+  if (!BUNDLE_ID) {
+    throw new Error("ASC_BUNDLE_ID is not set — set it to your app's bundle identifier (e.g. com.example.myapp).");
+  }
+  return BUNDLE_ID;
+}
 
 const server = new McpServer({ name: "appstore", version: "0.1.0" });
 
@@ -63,6 +87,15 @@ server.tool(
     const lines: string[] = [];
     let healthy = true;
 
+    const upload = uploadCommand();
+    lines.push(`config: platform=${PLATFORM}  upload="${upload.command} ${upload.args.join(" ")}"`);
+    if (BUNDLE_ID) {
+      lines.push(`✓ ASC_BUNDLE_ID = ${BUNDLE_ID}`);
+    } else {
+      healthy = false;
+      lines.push("✗ ASC_BUNDLE_ID not set — set it to your app's bundle identifier");
+    }
+
     const credIssues = credentialProblems();
     if (credIssues.length) {
       healthy = false;
@@ -79,8 +112,11 @@ server.tool(
       lines.push(`✓ APPLE_TEAM_ID = ${process.env.APPLE_TEAM_ID}`);
     }
 
-    lines.push(existsSync(MAC_APP_DIR) ? `✓ mac-app dir: ${MAC_APP_DIR}` : `✗ mac-app dir missing: ${MAC_APP_DIR}`);
-    if (!existsSync(MAC_APP_DIR)) healthy = false;
+    lines.push(existsSync(PROJECT_DIR) ? `✓ project dir: ${PROJECT_DIR}` : `✗ project dir missing: ${PROJECT_DIR}`);
+    if (!existsSync(PROJECT_DIR)) healthy = false;
+    if (existsSync(PROJECT_DIR) && !existsSync(join(PROJECT_DIR, "fastlane", "Fastfile"))) {
+      lines.push(`△ no fastlane/Fastfile in project dir — asc_upload_build needs one (or set ASC_UPLOAD_CMD)`);
+    }
 
     for (const [name, cmd] of [["fastlane", "fastlane --version"], ["xcodebuild", "xcodebuild -version"]] as const) {
       try {
@@ -92,8 +128,8 @@ server.tool(
       }
     }
 
-    if (!credIssues.length) {
-      const app = await getAppByBundleId(BUNDLE_ID);
+    if (!credIssues.length && BUNDLE_ID) {
+      const app = await getAppByBundleId(requireBundleId());
       if (app) {
         lines.push(`✓ App record found: "${app.name}" (${app.bundleId}, id ${app.id})`);
       } else {
@@ -113,7 +149,7 @@ server.tool(
   "Snapshot of the app's release state: latest App Store versions with their review states, and recent builds with processing states. Use this to answer 'where is the release right now?'",
   {},
   guarded(async () => {
-    const app = await getAppByBundleId(BUNDLE_ID);
+    const app = await getAppByBundleId(requireBundleId());
     if (!app) return ok(`FAILED\nNo app record for ${BUNDLE_ID} in App Store Connect.`);
 
     const [versions, builds] = await Promise.all([getVersions(app.id, 5), getBuilds(app.id, 5)]);
@@ -138,7 +174,7 @@ server.tool(
     limit: z.number().int().min(1).max(50).default(10),
   },
   guarded(async ({ limit }) => {
-    const app = await getAppByBundleId(BUNDLE_ID);
+    const app = await getAppByBundleId(requireBundleId());
     if (!app) return ok(`FAILED\nNo app record for ${BUNDLE_ID}.`);
     const builds = await getBuilds(app.id, limit);
     if (!builds.length) return ok("OK — no builds uploaded yet.");
@@ -153,45 +189,54 @@ server.tool(
 
 server.tool(
   "asc_bump_version",
-  "Bump the local app version before a build. Increments the build number (CURRENT_PROJECT_VERSION) and optionally sets a new marketing version, updating both project.yml (xcodegen source) and the generated Xcode project so they stay in sync.",
+  "Bump the local app version before a build. Increments the build number (CURRENT_PROJECT_VERSION) and optionally sets a new marketing version. Updates every .xcodeproj/project.pbxproj in the project dir, plus project.yml if the project uses xcodegen, so all sources stay in sync.",
   {
     marketing_version: z.string().regex(/^\d+\.\d+(\.\d+)?$/).optional()
       .describe("New marketing version, e.g. '1.1.0'. Omit to keep the current one."),
     bump_build: z.boolean().default(true).describe("Increment the build number"),
   },
   guarded(async ({ marketing_version, bump_build }) => {
-    const yml = join(MAC_APP_DIR, "project.yml");
-    const pbx = join(MAC_APP_DIR, "Relay.xcodeproj", "project.pbxproj");
-    for (const f of [yml, pbx]) {
-      if (!existsSync(f)) return ok(`FAILED\nMissing ${f}`);
+    const pbxFiles = readdirSync(PROJECT_DIR)
+      .filter((f) => f.endsWith(".xcodeproj"))
+      .map((f) => join(PROJECT_DIR, f, "project.pbxproj"))
+      .filter(existsSync);
+    if (!pbxFiles.length) {
+      return ok(`FAILED\nNo .xcodeproj/project.pbxproj found in ${PROJECT_DIR} — set ASC_PROJECT_DIR to your Xcode project root.`);
     }
 
-    let ymlText = readFileSync(yml, "utf8");
-    let pbxText = readFileSync(pbx, "utf8");
-
-    const curBuildMatch = ymlText.match(/CURRENT_PROJECT_VERSION:\s*"?(\d+)"?/);
-    const curMarketingMatch = ymlText.match(/MARKETING_VERSION:\s*"?([\d.]+)"?/);
+    const firstPbx = readFileSync(pbxFiles[0], "utf8");
+    const curBuildMatch = firstPbx.match(/CURRENT_PROJECT_VERSION = (\d+);/);
+    const curMarketingMatch = firstPbx.match(/MARKETING_VERSION = ([\d.]+);/);
     if (!curBuildMatch || !curMarketingMatch) {
-      return ok("FAILED\nCould not find CURRENT_PROJECT_VERSION / MARKETING_VERSION in project.yml");
+      return ok(`FAILED\nCould not find CURRENT_PROJECT_VERSION / MARKETING_VERSION in ${pbxFiles[0]}`);
     }
 
     const oldBuild = parseInt(curBuildMatch[1], 10);
     const newBuild = bump_build ? oldBuild + 1 : oldBuild;
     const oldMarketing = curMarketingMatch[1];
     const newMarketing = marketing_version ?? oldMarketing;
+    const updated: string[] = [];
 
-    ymlText = ymlText
-      .replace(/CURRENT_PROJECT_VERSION:\s*"?\d+"?/, `CURRENT_PROJECT_VERSION: "${newBuild}"`)
-      .replace(/MARKETING_VERSION:\s*"?[\d.]+"?/, `MARKETING_VERSION: "${newMarketing}"`);
-    pbxText = pbxText
-      .replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${newBuild};`)
-      .replace(/MARKETING_VERSION = [\d.]+;/g, `MARKETING_VERSION = ${newMarketing};`);
+    for (const pbx of pbxFiles) {
+      const text = readFileSync(pbx, "utf8")
+        .replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${newBuild};`)
+        .replace(/MARKETING_VERSION = [\d.]+;/g, `MARKETING_VERSION = ${newMarketing};`);
+      writeFileSync(pbx, text);
+      updated.push(pbx);
+    }
 
-    writeFileSync(yml, ymlText);
-    writeFileSync(pbx, pbxText);
+    // xcodegen projects regenerate the pbxproj from project.yml — keep it in sync
+    const yml = join(PROJECT_DIR, "project.yml");
+    if (existsSync(yml)) {
+      const text = readFileSync(yml, "utf8")
+        .replace(/CURRENT_PROJECT_VERSION:\s*"?\d+"?/, `CURRENT_PROJECT_VERSION: "${newBuild}"`)
+        .replace(/MARKETING_VERSION:\s*"?[\d.]+"?/, `MARKETING_VERSION: "${newMarketing}"`);
+      writeFileSync(yml, text);
+      updated.push(yml);
+    }
 
     return ok(
-      `OK — version updated\nmarketing: ${oldMarketing} → ${newMarketing}\nbuild:     ${oldBuild} → ${newBuild}\nUpdated project.yml and project.pbxproj`,
+      `OK — version updated\nmarketing: ${oldMarketing} → ${newMarketing}\nbuild:     ${oldBuild} → ${newBuild}\nUpdated: ${updated.join(", ")}`,
     );
   }),
 );
@@ -200,14 +245,15 @@ server.tool(
 
 server.tool(
   "asc_upload_build",
-  "Archive, sign, and upload the app to TestFlight via `fastlane mac beta`. Runs asynchronously (5–15 min) — returns a job ID immediately; poll with asc_job_status. Note: fastlane's increment_build_number also bumps the build number, so you usually do NOT need asc_bump_version first unless changing the marketing version.",
+  "Archive, sign, and upload the app to TestFlight via the configured fastlane lane (default: `fastlane beta`; see ASC_FASTLANE_* / ASC_UPLOAD_CMD env vars). Runs asynchronously (5–15 min) — returns a job ID immediately; poll with asc_job_status. Note: if the lane calls increment_build_number you do NOT need asc_bump_version first unless changing the marketing version.",
   {},
   guarded(async () => {
     const credIssues = credentialProblems();
     if (credIssues.length) {
       return ok(`FAILED — cannot start build\n${credIssues.map((p) => `- ${p}`).join("\n")}`);
     }
-    const job = startJob("fastlane", ["mac", "beta"], MAC_APP_DIR);
+    const { command, args } = uploadCommand();
+    const job = startJob(command, args, PROJECT_DIR);
     return ok(
       `RUNNING — build started\njob id: ${job.id}\nlog: ${job.logPath}\nPoll with asc_job_status (expect 5–15 minutes). After success, watch asc_list_builds for processingState VALID.`,
     );
@@ -252,12 +298,12 @@ server.tool(
     if (!description && !keywords && !whats_new && !promotional_text) {
       return ok("FAILED\nNothing to update — pass at least one of description/keywords/whats_new/promotional_text.");
     }
-    const app = await getAppByBundleId(BUNDLE_ID);
+    const app = await getAppByBundleId(requireBundleId());
     if (!app) return ok(`FAILED\nNo app record for ${BUNDLE_ID}.`);
 
     let version = await getEditableVersion(app.id);
     if (!version && create_version) {
-      version = await createVersion(app.id, create_version);
+      version = await createVersion(app.id, create_version, PLATFORM);
     }
     if (!version) {
       return ok("FAILED\nNo editable App Store version. Pass create_version:'x.y.z' to open a new one.");
@@ -291,7 +337,7 @@ server.tool(
     build_id: z.string().optional().describe("Build ID from asc_list_builds to attach to the version. Omit if already attached."),
   },
   guarded(async ({ build_id }) => {
-    const app = await getAppByBundleId(BUNDLE_ID);
+    const app = await getAppByBundleId(requireBundleId());
     if (!app) return ok(`FAILED\nNo app record for ${BUNDLE_ID}.`);
 
     const version = await getEditableVersion(app.id);
@@ -301,7 +347,7 @@ server.tool(
       await attachBuildToVersion(version.id, build_id);
     }
 
-    const submissionId = await submitForReview(app.id, version.id);
+    const submissionId = await submitForReview(app.id, version.id, PLATFORM);
     return ok(
       `OK — submitted for review\nversion: ${version.versionString}\nreview submission: ${submissionId}\nTrack state with asc_app_status.`,
     );

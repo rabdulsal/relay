@@ -1,27 +1,37 @@
 # appstore-mcp
 
-MCP server that drives the full App Store release cycle for the Relay macOS app: version bump → build + TestFlight upload → metadata → review submission → status.
+An MCP server that drives the **full App Store release cycle** for iOS and macOS apps: version bump → archive + TestFlight upload → metadata → review submission → status.
 
-**Architecture:** direct App Store Connect REST API (ES256 JWT, zero-dep signing via `node:crypto`) for everything the API supports; shell-out to the existing `fastlane mac beta` lane only for archive+sign+upload, which the REST API cannot do. Long builds run as async jobs with log polling. Full design rationale: [`docs/APPSTORE_MCP_DESIGN.md`](../docs/APPSTORE_MCP_DESIGN.md).
+**What makes it different:** existing App Store Connect MCP servers wrap the REST API — metadata, TestFlight management, analytics. None of them can do the one step the REST API doesn't support: **archiving, signing, and uploading your binary**. This server is a *release pilot*, not an API browser:
+
+- **Direct ASC REST API** (ES256 JWT, zero-dependency signing via `node:crypto`) for status, builds, metadata, and review submission
+- **Your existing fastlane lane** for archive + sign + upload, run as an **async job** with log polling (a real archive takes 5–15 minutes — no MCP timeout can hold that)
+- **Local version bumping** across `project.pbxproj` (and `project.yml` for xcodegen projects)
+
+## Requirements
+
+- macOS with Xcode + command line tools
+- [fastlane](https://fastlane.tools) with a lane that builds and uploads (e.g. `beta`) — only needed for `asc_upload_build`; all other tools are pure REST
+- An App Store Connect API key (`.p8`)
 
 ## Setup
 
-1. **Generate an ASC API key** (once): App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys → Generate (role: **App Manager**). Download the `.p8` — Apple lets you download it exactly once.
+1. **Generate an ASC API key** (once): App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys → Generate (role: **App Manager**). Download the `.p8` — Apple lets you download it exactly once. Keep it in `~/.appstoreconnect/private_keys/`.
 
-2. **Build and register:**
+2. **Register with Claude Code:**
 
 ```bash
-cd appstore-mcp && npm install && npm run build
-
 claude mcp add appstore \
   -e APPLE_KEY_ID=XXXXXXXXXX \
   -e APPLE_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-  -e ASC_KEY_PATH=/path/to/AuthKey_XXXXXXXXXX.p8 \
-  -e APPLE_TEAM_ID=42B272KRRJ \
-  -- node /Users/abdulsar/Desktop/Project_Apps/Relay/appstore-mcp/dist/index.js
+  -e ASC_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8 \
+  -e APPLE_TEAM_ID=XXXXXXXXXX \
+  -e ASC_BUNDLE_ID=com.example.myapp \
+  -e ASC_PROJECT_DIR=/path/to/your/xcode/project \
+  -- npx @relayctl/appstore-mcp
 ```
 
-(`APPLE_KEY_CONTENT` with a base64-encoded `.p8` works instead of `ASC_KEY_PATH` — same var the Fastfile uses.)
+For a macOS app whose Fastfile uses `platform :mac`, add `-e ASC_PLATFORM=MAC_OS -e ASC_FASTLANE_PLATFORM=mac`.
 
 3. **Verify:** ask the agent to run `asc_doctor`. All checks should be ✓.
 
@@ -29,11 +39,11 @@ claude mcp add appstore \
 
 | Tool | What it does |
 |---|---|
-| `asc_doctor` | Verify creds, fastlane, xcodebuild, app record — run first |
+| `asc_doctor` | Verify config, creds, fastlane, xcodebuild, app record — run first |
 | `asc_app_status` | Versions + review states + recent builds in one call |
 | `asc_list_builds` | Build processing states (wait for `VALID` after upload) |
-| `asc_bump_version` | Bump build number / set marketing version in `project.yml` + pbxproj |
-| `asc_upload_build` | `fastlane mac beta` as async job — returns job ID immediately |
+| `asc_bump_version` | Bump build number / set marketing version in local project files |
+| `asc_upload_build` | Run your fastlane upload lane as an async job — returns job ID immediately |
 | `asc_job_status` | Poll a build job; status + log tail |
 | `asc_update_metadata` | Description / keywords / what's-new / promo text via REST |
 | `asc_submit_review` | Attach build + create review submission + submit |
@@ -51,16 +61,27 @@ asc_submit_review {build_id}                 # point of no return
 asc_app_status                               # WAITING_FOR_REVIEW
 ```
 
-## Env vars
+## Environment variables
+
+Credential names deliberately match fastlane's `app_store_connect_api_key`, so one credential set serves both.
 
 | Var | Required | Notes |
 |---|---|---|
 | `APPLE_KEY_ID` | yes | ASC API key ID |
 | `APPLE_ISSUER_ID` | yes | ASC issuer ID |
-| `APPLE_KEY_CONTENT` / `ASC_KEY_PATH` | one of | base64 `.p8` / path to `.p8` |
-| `APPLE_TEAM_ID` | for builds | `42B272KRRJ` |
-| `ASC_BUNDLE_ID` | no | default `com.salaamsolutions.relay` |
-| `ASC_MAC_APP_DIR` | no | default `<repo>/mac-app` |
+| `APPLE_KEY_CONTENT` / `ASC_KEY_PATH` | one of | base64-encoded `.p8` / path to `.p8` file |
+| `APPLE_TEAM_ID` | for builds | Apple Developer team ID |
+| `ASC_BUNDLE_ID` | yes | your app's bundle identifier |
+| `ASC_PROJECT_DIR` | recommended | Xcode project root where fastlane runs (default: cwd) |
+| `ASC_PLATFORM` | no | `IOS` (default), `MAC_OS`, `TV_OS`, `VISION_OS` |
+| `ASC_FASTLANE_LANE` | no | upload lane name (default: `beta`) |
+| `ASC_FASTLANE_PLATFORM` | no | fastlane platform prefix, e.g. `mac` or `ios` |
+| `ASC_UPLOAD_CMD` | no | full override, e.g. `bundle exec fastlane ios beta` |
+
+## Notes
+
+- Build jobs are children of the server process; if the MCP client disconnects mid-build the job dies. Logs persist in `~/.appstore-mcp/jobs/` either way.
+- `asc_submit_review` is the point of no return for a release — the tool description tells agents to confirm with a human first.
 
 ## License
 
