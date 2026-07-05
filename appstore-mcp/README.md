@@ -1,4 +1,4 @@
-# appstore-mcp
+# appstore-release-mcp
 
 An MCP server that drives the **full App Store release cycle** for iOS and macOS apps: version bump → archive + TestFlight upload → metadata → review submission → status.
 
@@ -28,7 +28,7 @@ claude mcp add appstore \
   -e APPLE_TEAM_ID=XXXXXXXXXX \
   -e ASC_BUNDLE_ID=com.example.myapp \
   -e ASC_PROJECT_DIR=/path/to/your/xcode/project \
-  -- npx @relayctl/appstore-mcp
+  -- npx appstore-release-mcp
 ```
 
 For a macOS app whose Fastfile uses `platform :mac`, add `-e ASC_PLATFORM=MAC_OS -e ASC_FASTLANE_PLATFORM=mac`.

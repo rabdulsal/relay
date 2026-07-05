@@ -1,10 +1,10 @@
 {
-  "name": "@relayctl/appstore-mcp",
+  "name": "appstore-release-mcp",
   "version": "0.1.0",
-  "description": "App Store Connect release automation MCP server — version bump, build upload, metadata, review submission",
+  "description": "App Store release pilot MCP server — version bump, archive + TestFlight upload, metadata, review submission",
   "type": "module",
-  "bin": { "appstore-mcp": "dist/index.js" },
-  "files": ["dist", "README.md"],
+  "bin": { "appstore-release-mcp": "dist/index.js" },
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
@@ -16,8 +16,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rabdulsal/relay.git"
+    "url": "https://github.com/rabdulsal/appstore-release-mcp.git"
   },
+  "homepage": "https://github.com/rabdulsal/appstore-release-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.24.0"
