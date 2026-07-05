@@ -3,4 +3,4 @@ dist/
 .env
 *.db
 .claude/
-*.xcuserstate
+*.xcuserstate.env.secret

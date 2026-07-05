@@ -1,0 +1,33 @@
+{
+  "name": "@relayctl/appstore-mcp",
+  "version": "0.1.0",
+  "description": "App Store Connect release automation MCP server — version bump, build upload, metadata, review submission",
+  "type": "module",
+  "bin": { "appstore-mcp": "dist/index.js" },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": ["mcp", "app-store-connect", "appstore", "testflight", "fastlane", "release"],
+  "author": "Rashad Abdul-Salaam <rabdulsalaam@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rabdulsal/relay.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
