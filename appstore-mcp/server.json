@@ -1,0 +1,99 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rabdulsal/appstore-release-mcp",
+  "description": "App Store release pilot MCP server — version bump, archive + TestFlight upload via fastlane, metadata, review submission",
+  "repository": {
+    "url": "https://github.com/rabdulsal/appstore-release-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "appstore-release-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "APPLE_KEY_ID",
+          "description": "App Store Connect API key ID",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "APPLE_ISSUER_ID",
+          "description": "App Store Connect API issuer ID",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_KEY_PATH",
+          "description": "Path to the .p8 App Store Connect API private key (alternative: APPLE_KEY_CONTENT with base64-encoded key)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "APPLE_KEY_CONTENT",
+          "description": "Base64-encoded .p8 private key content (alternative to ASC_KEY_PATH)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "APPLE_TEAM_ID",
+          "description": "Apple Developer team ID (required for builds/uploads)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_BUNDLE_ID",
+          "description": "Bundle identifier of the app to manage, e.g. com.example.myapp",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_PROJECT_DIR",
+          "description": "Xcode project root where fastlane runs (default: current working directory)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_PLATFORM",
+          "description": "App Store platform: IOS (default), MAC_OS, TV_OS, or VISION_OS",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_FASTLANE_LANE",
+          "description": "Fastlane lane used for archive + upload (default: beta)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_FASTLANE_PLATFORM",
+          "description": "Fastlane platform prefix, e.g. mac or ios",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ASC_UPLOAD_CMD",
+          "description": "Full override of the upload command, e.g. 'bundle exec fastlane ios beta'",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "name": "appstore-release-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.rabdulsal/appstore-release-mcp",
   "description": "App Store release pilot MCP server — version bump, archive + TestFlight upload, metadata, review submission",
   "type": "module",
   "bin": { "appstore-release-mcp": "dist/index.js" },

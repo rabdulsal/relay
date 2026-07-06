@@ -60,7 +60,7 @@ function requireBundleId(): string {
   return BUNDLE_ID;
 }
 
-const server = new McpServer({ name: "appstore", version: "0.1.0" });
+const server = new McpServer({ name: "appstore", version: "0.1.1" });
 
 function ok(text: string) {
   return { content: [{ type: "text" as const, text }] };
