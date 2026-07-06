@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.rabdulsal/appstore-release-mcp",
-  "description": "App Store release pilot MCP server — version bump, archive + TestFlight upload via fastlane, metadata, review submission",
+  "description": "App Store release pilot — version bump, TestFlight upload, metadata, review submission",
   "repository": {
     "url": "https://github.com/rabdulsal/appstore-release-mcp",
     "source": "github"
