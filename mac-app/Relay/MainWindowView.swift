@@ -8,6 +8,7 @@ struct MainWindowView: View {
     @State private var showCreate  = false
     @State private var selectedId: String?   = nil
     @State private var orderedIds: [String]  = []
+    @FocusState private var listFocused: Bool
 
     var filteredTasks: [RelayTask] {
         switch filter {
@@ -56,6 +57,7 @@ struct MainWindowView: View {
                             ForEach(listTasks) { task in
                                 WindowTaskRow(task: task, isSelected: selectedId == task.id) {
                                     selectedId = selectedId == task.id ? nil : task.id
+                                    listFocused = true
                                 }
                                 .environmentObject(store)
                                 .listRowInsets(EdgeInsets())
@@ -76,6 +78,13 @@ struct MainWindowView: View {
             }
             .frame(minWidth: 440)
             .background(Color(NSColor.windowBackgroundColor))
+            .focusable()
+            .focused($listFocused)
+            .onMoveCommand { dir in navigateTasks(dir) }
+            .onExitCommand {
+                if showCreate    { showCreate = false }
+                else             { selectedId = nil   }
+            }
         }
         .background(Color(NSColor.windowBackgroundColor))
     }
@@ -213,6 +222,26 @@ struct MainWindowView: View {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private func navigateTasks(_ direction: MoveCommandDirection) {
+        let tasks = listTasks
+        guard !tasks.isEmpty else { return }
+        switch direction {
+        case .up:
+            if let id = selectedId, let idx = tasks.firstIndex(where: { $0.id == id }) {
+                selectedId = tasks[max(0, idx - 1)].id
+            } else {
+                selectedId = tasks.last?.id
+            }
+        case .down:
+            if let id = selectedId, let idx = tasks.firstIndex(where: { $0.id == id }) {
+                selectedId = tasks[min(tasks.count - 1, idx + 1)].id
+            } else {
+                selectedId = tasks.first?.id
+            }
+        default: break
+        }
+    }
 
     private func count(for tab: FilterTab) -> Int {
         switch tab {
